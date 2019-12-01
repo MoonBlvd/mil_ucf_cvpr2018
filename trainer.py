@@ -28,10 +28,10 @@ def do_train(model, data_loader):
         loss_graph = np.hstack((loss_graph, batch_loss))
         total_iterations += 1
         if total_iterations % 20 == 1:
-            print "These iteration=" + str(total_iterations) + ") took: " + str(datetime.now() - time_before) + ", with loss of " + str(batch_loss)
+            print("These iteration=" + str(total_iterations) + ") took: " + str(datetime.now() - time_before) + ", with loss of " + str(batch_loss))
             iteration_path = output_dir + 'Iterations_graph_' + str(total_iterations) + '.mat'
             savemat(iteration_path, dict(loss_graph=loss_graph))
         if total_iterations % 1000 == 0:  # Save the model at every 1000th iterations.
-        weights_path = output_dir + 'weightsAnomalyL1L2_' + str(total_iterations) + '.mat'
-        save_model(model, model_path, weights_path)
+            weights_path = output_dir + 'weightsAnomalyL1L2_' + str(total_iterations) + '.mat'
+            save_model(model, model_path, weights_path)
 
