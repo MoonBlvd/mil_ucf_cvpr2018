@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "train_MIL.py", line 28, in <module>
+    val_set = A3DMILDataset('/home/data/vision7/A3D_feat/val', batch_size=1, phase='val')
+  File "/nfs/nfs7/home/xiziwang/projects/stad-cvpr2020/baselines/VideoAnomalyDetection/MIL_ucf_cvpr2018/A3D_MIL_dataset.py", line 27, in __init__
+    self.normal_vids = os.listdir(self.normal_vids_dir)
+FileNotFoundError: [Errno 2] No such file or directory: '/home/data/vision7/A3D_feat/val/normal'

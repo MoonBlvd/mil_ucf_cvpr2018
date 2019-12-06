@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "train_MIL.py", line 27, in <module>
+    val_dataloader = data.DataLoader(val_set, **params)
+  File "/nobackup/xiziwang/usr/local/miniconda3/envs/tf/lib/python3.6/site-packages/torch/utils/data/dataloader.py", line 213, in __init__
+    sampler = RandomSampler(dataset)
+  File "/nobackup/xiziwang/usr/local/miniconda3/envs/tf/lib/python3.6/site-packages/torch/utils/data/sampler.py", line 94, in __init__
+    "value, but got num_samples={}".format(self.num_samples))
+ValueError: num_samples should be a positive integer value, but got num_samples=0
