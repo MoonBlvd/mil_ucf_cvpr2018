@@ -5,7 +5,7 @@ import torch.nn as nn
 def init_weights(m):
     if type(m) == nn.Linear:
         torch.nn.init.xavier_normal_(m.weight)
-        m.bias.data.fill_(0.01)
+        # m.bias.data.fill_(0.01)
 
 
 class PredHead(nn.Module):
@@ -15,11 +15,11 @@ class PredHead(nn.Module):
         self.model = nn.Sequential(
             nn.Linear(1024, 512),
             nn.ReLU(),
-            nn.Dropout(0.6),
-            nn.Linear(512, 32),
+        # nn.Dropout(0.6),
+            nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Dropout(0.6),
-            nn.Linear(32, 1),
+        # nn.Dropout(0.6),
+            nn.Linear(256, 1),
             nn.Sigmoid(),
         )
 

@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "train_MIL.py", line 22, in <module>
-    training_set = A3DMILDataset('/home/data/vision7/A3D_feat/train', batch_size=2)
-  File "/nfs/nfs7/home/xiziwang/projects/stad-cvpr2020/baselines/VideoAnomalyDetection/MIL_ucf_cvpr2018/A3D_MIL_dataset.py", line 27, in __init__
-    self.anomaly_vids = os.listdir(self.anomaly_vids_dir)
-FileNotFoundError: [Errno 2] No such file or directory: '/home/data/vision7/A3D_feat/train/anomaly'

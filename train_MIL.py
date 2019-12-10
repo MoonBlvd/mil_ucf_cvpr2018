@@ -8,7 +8,9 @@ import torch.nn.functional as F
 import wandb
 from sklearn import metrics
 import numpy as np
+import pdb
 
+torch.set_printoptions(precision=2)
 wandb.init()
 
 use_cuda = torch.cuda.is_available()
@@ -21,12 +23,16 @@ params = {'batch_size': 1, 'shuffle': True, 'num_workers': 1}
 
 max_epochs = 10000
 
-training_set = A3DMILDataset('/home/data/vision7/A3D_feat/train', batch_size=2, phase='train')
+training_set = A3DMILDataset('/home/data/vision7/A3D_feat/dataset/train/',
+                             batch_size=2,
+                             phase='train')
 data_loader = data.DataLoader(training_set, **params)
 # test_loader = data.DataLoader(training_set, **params)
 
-val_set = A3DMILDataset('/home/data/vision7/A3D_feat/val', batch_size=1, phase='val')
-val_dataloader = data.DataLoader(val_set, **params)
+val_set = A3DMILDataset('/home/data/vision7/A3D_feat/dataset/train', batch_size=1, phase='val')
+val_params = params.copy()
+val_params["shuffle"] = False
+val_dataloader = data.DataLoader(val_set, **val_params)
 
 net = PredHead()
 net.cuda()
@@ -38,13 +44,14 @@ for params in net.parameters():
 
 def loss_fn(outputs, labels):
     batch_size = outputs.size()[0]
-    normal_max = torch.max(outputs.view(1, 1, -1) * (1.0 - labels))
-    abnormal_max = torch.max(outputs.view(1, 1, -1) * labels)
+    normal_max = torch.max(outputs.view(batch_size, -1) * (1.0 - labels.view(batch_size, -1)))
+    abnormal_max = torch.max(outputs.view(batch_size, -1) * labels.view(batch_size, -1))
     return torch.max(torch.tensor(0.0).cuda(), 1.0 - abnormal_max + normal_max)
 
 
 optimizer = torch.optim.Adagrad(net.parameters(), lr=0.001)
 # optimizer = torch.optim.Adam(net.parameters(), lr = 0.0001 )
+# optimizer = torch.optim.SGD(net.parameters(), lr=0.001)
 for epoch in range(max_epochs):
     # Training
     net.train()
@@ -54,51 +61,60 @@ for epoch in range(max_epochs):
         local_batch, local_labels = local_batch.to(device), local_labels.to(device)
         optimizer.zero_grad()
         outputs = net(local_batch)
+        if idx % 1000 == 0:
+            print(outputs, local_labels)
         loss = loss_fn(outputs, local_labels)
         # if idx % 10 == 0:
         # print(outputs, local_labels, loss)
         running_loss += (loss.item() - running_loss) / (idx + 1)
         loss.backward()
         optimizer.step()
-        if idx % 10 == 0:
-            wandb.log({"loss": running_loss})
-    print(running_loss)
+        # if idx % 10 == 0:
+        wandb.log({"training loss": running_loss})
+        # if idx % 1000 == 0:
+        # print(local_batch, local_labels)
+    print("Epoch:{}. running loss: {:5f}".format(epoch, running_loss))
 
-    net.eval()
-    # print(running_loss)
-    correct = 0
-    total = 0
-    print("=========begin to eval==========")
-    test_running_loss = 0
-    with torch.no_grad():
+    eval = True
+    if eval:
         net.eval()
-        y_ct = np.array([])
-        pred_ct = np.array([])
-        for idx, (batch, label) in enumerate(val_dataloader):
-            batch = batch.to(device)
-            label = label.to(device)
-            outputs = net(batch)
-            # loss = loss_fn(outputs, label)
-            # if idx % 10 == 0:
-            # print(outputs, label, loss)
-            outputs = outputs.view(1, 1, -1)
-            ones = torch.ones(outputs.shape).cuda()
-            zeros = torch.zeros(outputs.shape).cuda()
-            predicted = torch.where(outputs > 0.5, ones, zeros)
-            # total += label.size(1)
-            # correct += (predicted == label).sum().item()
-            # test_running_loss += (loss.item() - test_running_loss) / (idx + 1)
-            pred = predicted.cpu().numpy()
-            pred = pred[0][0][:-1]
-            pred_labels_pop = np.zeros(len(pred) * 16, dtype='uint8')
-            for i in range(len(pred)):
-                if pred[i] == 1:
-                    for j in range(16):
-                        pred_labels_pop[16 * i + j] = 1
-            y = label.cpu().numpy()[0][:len(pred_labels_pop)]
-            y_ct = np.concatenate((y_ct, y), axis=None)
-            pred_ct = np.concatenate((pred_ct, pred_labels_pop), axis=None)
-        fpr, tpr, thresholds = metrics.roc_curve(y_ct, pred_ct, pos_label=1)
-        wandb.log({"auc": metrics.auc(fpr, tpr)})
-    # print(test_running_loss)
+        # print(running_loss)
+        correct = 0
+        total = 0
+        print("=========begin to eval==========")
+        test_running_loss = 0.0
+        with torch.no_grad():
+            y_ct = []
+            pred_ct = []
+            for idx, (batch, label) in enumerate(val_dataloader):
+                batch = batch.to(device)
+                label = label.to(device)
+                outputs = net(batch)
+                loss = loss_fn(outputs, label)
+                # if idx % 10 == 0:
+                # print(outputs, label, loss)
+                ones = torch.ones(outputs.shape).cuda()
+                zeros = torch.zeros(outputs.shape).cuda()
+                predicted = outputs.squeeze(-1)
+                test_running_loss += (loss.item() - test_running_loss) / (idx + 1)
+                # if idx % 10 == 0:
+                # y = label.cpu().numpy()
+                for p, y in zip(predicted.cpu(), label.cpu()):
+                    # y_ct = torch.cat((y_ct, y), dim=0)
+                    y_ct.append(y)
+                    pred_ct.append(p)
+                    # pred_ct = torch.cat((pred_ct, p), dim=0)
+                if idx % 1000 == 0:
+                    print(p)
+                    print(y)
+            y_ct = torch.cat(y_ct, dim=0)
+            pred_ct = torch.cat(pred_ct, dim=0)
+            y_ct = y_ct.numpy()
+            pred_ct = pred_ct.numpy()
+            fpr, tpr, thresholds = metrics.roc_curve(y_ct, pred_ct, pos_label=1)
+            print("auc: {}".format(metrics.auc(fpr, tpr)))
+            # print(y_ct.shape, pred_ct.shape)
+            wandb.log({"validation loss": test_running_loss})
+            wandb.log({"auc": metrics.auc(fpr, tpr)})
+    # print(test_running_loss / (idx + 1))
     # print('Accuracy of the network on the epoch : %d %%' % (100 * correct / total))

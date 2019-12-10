@@ -24,8 +24,8 @@ class A3DMILDataset(Dataset):
         self.normal_vids_dir = os.path.join(root_dir, 'normal')
         self.anomaly_vids_dir = os.path.join(root_dir, 'abnormal')
 
-        self.normal_vids = os.listdir(self.normal_vids_dir)[:-1]
-        self.anomaly_vids = os.listdir(self.anomaly_vids_dir)
+        self.normal_vids = os.listdir(self.normal_vids_dir)[:-1][:30]
+        self.anomaly_vids = os.listdir(self.anomaly_vids_dir)[:30]
         self.all_vids = {'normal': self.normal_vids, 'abnormal': self.anomaly_vids}
 
         self.num_anomaly = len(self.anomaly_vids)
@@ -48,22 +48,21 @@ class A3DMILDataset(Dataset):
         All_features = []
         if self.phase == 'train':
             label = 'normal'
-            # Normal_features = []
-            # Anomaly_features = []
             dire = os.path.join(os.path.join(self.root_dir, label), self.all_vids[label][index])
-            normal_clip_num = len(os.listdir(dire))
-            # Normal_features = np.zeros(shape=(normal_clip_num, 1024) )
+            normal_clip_num = 0
             for i, iv in enumerate(os.listdir(dire)):
+                if i % 8 == 0:
+                    feature = np.load(os.path.join(dire, iv))
+                    All_features.append(torch.from_numpy(feature))
+                    normal_clip_num += 1
+        label = 'abnormal'
+        dire = os.path.join(os.path.join(self.root_dir, label), self.all_vids[label][index])
+        abnormal_clip_num = 0
+        for i, iv in enumerate(os.listdir(dire)):
+            if i % 8 == 0:
                 feature = np.load(os.path.join(dire, iv))
                 All_features.append(torch.from_numpy(feature))
-        label = 'abnormal'
-        # abnormal_clip_num = 0
-        dire = os.path.join(os.path.join(self.root_dir, label), self.all_vids[label][index])
-        abnormal_clip_num = len(os.listdir(dire))
-        # Anomaly_features = np.zeros(shape = ( abnormal_clip_num, 1024) )
-        for iv in os.listdir(dire):
-            feature = np.load(os.path.join(dire, iv))
-            All_features.append(torch.from_numpy(feature))
+                abnormal_clip_num += 1
 
         if self.phase == 'train':
             Normal_labels = np.zeros(normal_clip_num, dtype='uint8')
@@ -73,20 +72,16 @@ class A3DMILDataset(Dataset):
         else:
             start = self.abnormal_dict[self.all_vids[label][index]]['anomaly_start']
             if start == None:
-                start = 1
+                start = 0
             end = self.abnormal_dict[self.all_vids[label][index]]['anomaly_end']
-            Anomaly_labels = np.zeros(self.abnormal_dict[self.all_vids[label][index]]['num_frames'],
-                                      dtype='uint8')
-            for i in range(start - 1, end - 1):
-                Anomaly_labels[i] = 1
+            Anomaly_labels = np.zeros(abnormal_clip_num, dtype='uint8')
+            for i in range(abnormal_clip_num):
+                if i * 8 >= start and i * 8 < end:
+                    Anomaly_labels[i] = 1
             All_labels = Anomaly_labels
         All_features = torch.stack(All_features, dim=0)
-        # print(All_labels.shape)
         All_labels = torch.from_numpy(All_labels)
         return All_features, All_labels
 
     def __len__(self):
-        if self.phase == 'train':
-            return self.num_normal
-        else:
-            return self.num_anomaly
+        return self.num_anomaly
