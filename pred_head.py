@@ -15,10 +15,10 @@ class PredHead(nn.Module):
         self.model = nn.Sequential(
             nn.Linear(1024, 512),
             nn.ReLU(),
-        # nn.Dropout(0.6),
+            nn.Dropout(0.6),
             nn.Linear(512, 256),
             nn.ReLU(),
-        # nn.Dropout(0.6),
+            nn.Dropout(0.6),
             nn.Linear(256, 1),
             nn.Sigmoid(),
         )
