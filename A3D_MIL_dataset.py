@@ -139,6 +139,7 @@ class A3DMILDataset(Dataset):
         normal_clip_num = len(clips.keys())
         avg_num = normal_clip_num / self.num_clips_per_sample
         avg_num = int(avg_num)
+        # print(self.all_vids['normal'][index], normal_clip_num, avg_num)
 
         for i in range(self.num_clips_per_sample):
             avg_feat = []
@@ -188,6 +189,7 @@ class A3DMILDataset(Dataset):
             pad_num = self.num_clips_per_sample - (abnormal_clip_num % self.num_clips_per_sample)
         for i in range(pad_num):
             clips[abnormal_clip_num + i] = clips[abnormal_clip_num - 1]
+        abnormal_clip_num = len(clips.keys())
         avg_num = abnormal_clip_num / self.num_clips_per_sample
         avg_num = int(avg_num)
 
@@ -211,10 +213,11 @@ class A3DMILDataset(Dataset):
             for i in range(len(features)):
                 feat_start = i * avg_num
                 feat_end = (i + 1) * avg_num
-                if feat_start >= start and feat_start < end:
+                feat_middle = (feat_start + feat_end) / 2
+                if feat_middle >= start and feat_middle < end:
                     Anomaly_labels[i] = 1.0
-                elif feat_end >= start and feat_end < end:
-                    Anomaly_labels[i] = 1.0
+                # elif feat_end >= start and feat_end < end:
+                # Anomaly_labels[i] = 1.0
         return {
             "feature": torch.stack(features, dim=0),
             'clip_num': len(features),

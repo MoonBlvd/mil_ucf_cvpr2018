@@ -10,6 +10,7 @@ from sklearn import metrics
 import numpy as np
 import pdb
 from torch.nn.utils.rnn import pad_sequence
+from loss import MILLoss
 
 torch.set_printoptions(precision=2)
 wandb.init()
@@ -32,15 +33,15 @@ def pad_collate(batch):
 
 
 # Parameters
-params = {'batch_size': 1, 'shuffle': True, 'num_workers': 1, 'collate_fn': pad_collate}
+params = {'batch_size': 4, 'shuffle': True, 'num_workers': 1, 'collate_fn': pad_collate}
 
 # params = {'batch_size': 4, 'shuffle': True, 'num_workers': 1}
 val_params = {'batch_size': 1, 'shuffle': False, 'num_workers': 1, 'collate_fn': pad_collate}
 # val_params = {'batch_size': 1, 'shuffle': False, 'num_workers': 1}
-max_epochs = 2000
+max_epochs = 200
 
 training_set = A3DMILDataset('/home/data/vision7/A3D_feat/dataset/train/',
-                             batch_size=1,
+                             batch_size=4,
                              phase='train')
 data_loader = data.DataLoader(training_set, **params)
 # test_loader = data.DataLoader(training_set, **params)
@@ -59,22 +60,33 @@ for params in net.parameters():
 
 def loss_fn(outputs, labels, len_outputs, len_labels):
     batch_size = outputs.size()[0]
-    mask = torch.zeros(outputs.view(batch_size, -1).shape).to(device)
-    for i, l in enumerate(len_outputs):
-        mask[i, :l] = 1.0
-    normal_max = torch.max(outputs.view(batch_size, -1) * mask *
-                           (1.0 - labels.view(batch_size, -1)),
+    # mask = torch.zeros(outputs.view(batch_size, -1).shape).to(device)
+    # for i, l in enumerate(len_outputs):
+    # mask[i, :l] = 1.0
+    # normal_max = torch.max(outputs.view(batch_size, -1) * mask *
+    # (1.0 - labels.view(batch_size, -1)),
+    # dim=1).values
+    # abnormal_max = torch.max(outputs.view(batch_size, -1) * mask * labels.view(batch_size, -1),
+    # dim=1).values
+    normal_max = torch.max(outputs.view(batch_size, -1) * (1.0 - labels.view(batch_size, -1)),
                            dim=1).values
-    abnormal_max = torch.max(outputs.view(batch_size, -1) * mask * labels.view(batch_size, -1),
+    abnormal_max = torch.max(outputs.view(batch_size, -1) * labels.view(batch_size, -1),
                              dim=1).values
-    loss = torch.mean(1.0 - abnormal_max + normal_max)
-    return torch.max(torch.tensor(0.0).to(device), loss.float())
+    loss = torch.max(torch.tensor(0.0).to(device), 1.0 - abnormal_max + normal_max)
+    # loss = torch.mean(1.0 - abnormal_max + normal_max)
+    return torch.mean(loss)
     # return torch.max(torch.tensor(0.0).to(device), 1.0 - abnormal_max + normal_max)
+
+
+def mil_loss_fn(outputs, labels, len_outputs, len_labels):
+    mil_loss = MILLoss()
+    loss = mil_loss.forward(labels, outputs)
 
 
 optimizer = torch.optim.Adagrad(net.parameters(), lr=0.001)
 # optimizer = torch.optim.Adam(net.parameters(), lr = 0.0001 )
 # optimizer = torch.optim.SGD(net.parameters(), lr=0.001)
+iters = 0
 for epoch in range(max_epochs):
     # Training
     net.train()
@@ -86,11 +98,12 @@ for epoch in range(max_epochs):
             len_labels,
     ) in enumerate(tqdm(data_loader)):
         # Transfer to GPU
+        iters += 1
         local_batch, local_labels = local_batch.to(device), local_labels.to(device)
         # print(local_batch.shape)
         optimizer.zero_grad()
         outputs = net(local_batch)
-        loss = loss_fn(outputs.view(outputs.size()[0], -1), local_labels, len_batch, len_labels)
+        loss = mil_loss_fn(outputs.view(outputs.size()[0], -1), local_labels, len_batch, len_labels)
         if idx % 1000 == 0:
             print('===========training sample===============')
             # print(names)
@@ -101,8 +114,8 @@ for epoch in range(max_epochs):
         running_loss += (loss.item() - running_loss) / (idx + 1)
         loss.backward()
         optimizer.step()
-        if idx % 10 == 0:
-            wandb.log({"training loss": running_loss})
+        if idx % 20 == 0:
+            wandb.log({"training loss": running_loss}, step=iters)
         # if idx % 1000 == 0:
         # print(local_batch, local_labels)
     print("Epoch:{}. running loss: {:5f}".format(epoch, running_loss))
@@ -124,11 +137,12 @@ for epoch in range(max_epochs):
                 batch = batch.to(device)
                 label = label.to(device)
                 outputs = net(batch)
-                loss = loss_fn(outputs, label, len_batch, len_label)
+                loss = mil_loss_fn(outputs, label, len_batch, len_label)
                 ones = torch.ones(outputs.shape).to(device)
                 zeros = torch.zeros(outputs.shape).to(device)
                 predicted = outputs.squeeze(-1)
                 all_one_label = ones.squeeze(-1)
+                label = label.squeeze(-1)
                 test_running_loss += (loss.item() - test_running_loss) / (idx + 1)
                 # for p, y in zip(predicted.cpu(), label.cpu()):
                 for p, y, one in zip(predicted, label, all_one_label):
@@ -138,8 +152,9 @@ for epoch in range(max_epochs):
                 if idx == 0:
                     print('==============val sample==============')
                     # print(names)
-                    print(p)
-                    print(y)
+                    print(pred_ct)
+                    print(y_ct)
+                    print(all_one_ct)
             # print(y_ct)
             y_ct = torch.cat(y_ct, dim=0)
             pred_ct = torch.cat(pred_ct, dim=0)
@@ -152,5 +167,5 @@ for epoch in range(max_epochs):
             print("all one auc: {}".format(metrics.auc(one_fpr, one_tpr)))
             print("auc: {}".format(metrics.auc(fpr, tpr)))
             # print(y_ct.shape, pred_ct.shape)
-            wandb.log({"validation loss": test_running_loss})
-            wandb.log({"auc": metrics.auc(fpr, tpr)})
+            wandb.log({"validation loss": test_running_loss}, step=iters)
+            wandb.log({"auc": metrics.auc(fpr, tpr)}, step=iters)
