@@ -2,7 +2,7 @@ import torch
 from trainer import do_train
 from torch.utils import data
 from pred_head import PredHead
-from A3D_MIL_dataset import A3DMILDataset
+from A3D_MIL_dataset_padding import A3DMILDataset
 from tqdm import tqdm
 import torch.nn.functional as F
 import wandb
@@ -46,9 +46,9 @@ def pad_collate_val(batch):
 
 
 # Parameters
-# params = {'batch_size': 4, 'shuffle': True, 'num_workers': 1, 'collate_fn': pad_collate}
+params = {'batch_size': 4, 'shuffle': True, 'num_workers': 1, 'collate_fn': pad_collate}
 
-params = {'batch_size': 4, 'shuffle': True, 'num_workers': 1}
+# params = {'batch_size': 4, 'shuffle': True, 'num_workers': 1}
 # val_params = {'batch_size': 1, 'shuffle': False, 'num_workers': 1, 'collate_fn': pad_collate_val}
 val_params = {'batch_size': 1, 'shuffle': False, 'num_workers': 1}
 max_epochs = 200
@@ -71,12 +71,11 @@ for params in net.parameters():
     params.requires_grad = True
 
 
-# def loss_fn(outputs, labels, len_outputs, len_labels, phase='train', abnormal_pad_num=0):
-def loss_fn(outputs, labels, phase='train', abnormal_pad_num=0):
+def loss_fn(outputs, labels, len_outputs, len_labels, phase='train', abnormal_pad_num=0):
+    # def loss_fn(outputs, labels, phase='train', abnormal_pad_num=0):
     batch_size = outputs.size()[0]
-    if phase == 'val':
-        outputs = tile(outputs, dim=1, n_tile=abnormal_pad_num)
-        '''
+    # if phase == 'val':
+    # outputs = tile(outputs, dim=1, n_tile=abnormal_pad_num)
     if phase == 'train':
         mask = torch.zeros(outputs.view(batch_size, -1).shape).to(device)
         for i, l in enumerate(len_outputs):
@@ -91,11 +90,6 @@ def loss_fn(outputs, labels, phase='train', abnormal_pad_num=0):
                                dim=1).values.float()
         abnormal_max = torch.max(outputs.view(batch_size, -1) * labels.view(batch_size, -1),
                                  dim=1).values.float()
-    '''
-    normal_max = torch.max(outputs.view(batch_size, -1) * (1.0 - labels.view(batch_size, -1)),
-                           dim=1).values.float()
-    abnormal_max = torch.max(outputs.view(batch_size, -1) * labels.view(batch_size, -1),
-                             dim=1).values.float()
     loss = torch.max(torch.tensor(0.0).to(device), 1.0 - abnormal_max + normal_max)
     # print(torch.flatten(outputs), labels, loss)
     # loss = torch.mean(1.0 - abnormal_max + normal_max)
@@ -130,17 +124,15 @@ for epoch in range(max_epochs):
     # Training
     net.train()
     running_loss = 0.0
-    # for idx, (local_batch, local_labels, len_outputs, len_labels) in enumerate(tqdm(data_loader)):
-    for idx, (local_batch, local_labels) in enumerate(tqdm(data_loader)):
+    for idx, (local_batch, local_labels, len_outputs, len_labels) in enumerate(tqdm(data_loader)):
         # Transfer to GPU
         iters += 1
         local_batch, local_labels = local_batch.to(device), local_labels.to(device)
         # print(local_batch.shape)
         optimizer.zero_grad()
         outputs = net(local_batch)
-        # loss, outputs = loss_fn(outputs.view(outputs.size()[0], -1), local_labels, len_outputs,
-        # len_labels)
-        loss, outputs = loss_fn(outputs.view(outputs.size()[0], -1), local_labels)
+        loss, outputs = loss_fn(outputs.view(outputs.size()[0], -1), local_labels, len_outputs,
+                                len_labels)
         if idx % 1000 == 0:
             print('===========training sample===============')
             # print(names)
@@ -178,13 +170,12 @@ for epoch in range(max_epochs):
                 batch = batch.to(device)
                 label = label.to(device)
                 outputs = net(batch)
-                loss, outputs = loss_fn(
-                    outputs,
-                    label,
-                # len_outputs=0,
-                # len_labels=0,
-                    phase='val',
-                    abnormal_pad_num=abnormal_pad_num)
+                loss, outputs = loss_fn(outputs,
+                                        label,
+                                        len_outputs=0,
+                                        len_labels=0,
+                                        phase='val',
+                                        abnormal_pad_num=abnormal_pad_num)
                 ones = torch.ones(outputs.shape).to(device)
                 predicted = outputs.squeeze(-1)
                 all_one_label = ones.squeeze(-1)

@@ -27,18 +27,16 @@ class MILLoss(nn.Module):
         sub_l2 = torch.ones_like(
             y_true)    # For holding the concatenation of L2 of score in the bag.
 
-        pdb.set_trace()
-
-        for ii in xrange(0, nvid, 1):
+        # pdb.set_trace()
+        for ii in range(0, nvid, 1):
             # For Labels
             mm = y_true[ii * n_seg:ii * n_seg + n_seg]
             sub_sum_labels = torch.cat([sub_sum_labels, torch.stack(torch.sum(mm))
                                        ])    # Just to keep track of abnormal and normal vidoes
-
             # For Features scores
             Feat_Score = y_pred[ii * n_seg:ii * n_seg + n_seg]
             sub_max = torch.cat([
-                sub_max, torch.stack(torch.max(Feat_Score))
+                sub_max, torch.stack(torch.max(Feat_Score),)
             ])    # Keep the maximum score of scores of all instances in a Bag (video)
             sub_sum_l1 = torch.cat([sub_sum_l1, torch.stack(torch.sum(Feat_Score))
                                    ])    # Keep the sum of scores of all instances in a Bag (video)
@@ -46,10 +44,10 @@ class MILLoss(nn.Module):
             z1 = torch.ones_like(Feat_Score)
             z2 = torch.cat([z1, Feat_Score])
             z3 = torch.cat([Feat_Score, z1])
-            z_22 = z2[31:]
-            z_44 = z3[:33]
+            z_22 = z2[15:]
+            z_44 = z3[:17]
             z = z_22 - z_44
-            z = z[1:32]
+            z = z[1:16]
             z = torch.sum(torch.sqr(z))
             sub_l2 = torch.cat([sub_l2, torch.stack(z)])
 
@@ -81,12 +79,12 @@ class MILLoss(nn.Module):
         Sub_Abn = sub_score[indx_abn]    # Maximum Score for each of normal video
 
         z = torch.ones_like(y_true)
-        for ii in xrange(0, n_Nor, 1):
+        for ii in range(0, n_Nor, 1):
             sub_z = torch.maximum(1 - Sub_Abn + Sub_Nor[ii], 0)
             z = torch.cat([z, torch.stack(torch.sum(sub_z))])
 
         z = z[Num_d:]    # We need this step since we have used torch.ones_like
         z = torch.mean(z, dim=-1) + 0.00008 * torch.sum(sub_sum_l1) + 0.00008 * torch.sum(
             sub_l2)    # Final Loss f
-        pdb.set_trace()
+        # pdb.set_trace()
         return z

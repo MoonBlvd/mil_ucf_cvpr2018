@@ -61,8 +61,8 @@ class A3DMILDataset(Dataset):
 
         if self.phase == 'train':
 
-            normal_sample = self.get_normal_sample_nonoverlap(index)
-            abnormal_sample = self.get_abnormal_sample_non_overlap(index)
+            normal_sample = self.get_normal_sample(index)
+            abnormal_sample = self.get_abnormal_sample(index)
             All_features = torch.cat([normal_sample['feature'], abnormal_sample['feature']], dim=0)
 
             All_labels = torch.from_numpy(
@@ -71,7 +71,7 @@ class A3DMILDataset(Dataset):
 
             return All_features, All_labels
         else:
-            abnormal_sample = self.get_abnormal_sample_non_overlap(index)
+            abnormal_sample = self.get_abnormal_sample(index)
             All_features = abnormal_sample['feature']
             All_labels = torch.from_numpy(abnormal_sample['labels'])
 
